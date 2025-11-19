@@ -1,13 +1,23 @@
-# Multi-stage Dockerfile for a small production image
-FROM node:18-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci --only=production || npm install --production
+# Stage 1 — Build the frontend
+FROM node:18-alpine AS build
 
-FROM node:18-alpine AS runner
 WORKDIR /app
-ENV NODE_ENV=production
-COPY --from=deps /app/node_modules ./node_modules
+
+COPY package*.json ./
+RUN npm install
+
 COPY . .
-EXPOSE 3000
-CMD ["node", "index.js"]
+RUN npm run build
+
+
+# Stage 2 — Serve using nginx
+FROM nginx:1.25-alpine
+
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# Replace default nginx config (optional)
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
